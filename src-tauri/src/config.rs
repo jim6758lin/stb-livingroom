@@ -199,12 +199,25 @@ pub fn build_search_url(query: &str, autoplay: bool) -> String {
 
 /// 透過本機路由表查詢區域網路 IPv4 位址（UDP connect 不會實際發送任何網路封包）
 pub fn detect_lan_ip() -> String {
-    if let Ok(socket) = UdpSocket::bind("0.0.0.0:0") {
-        if socket.connect("192.168.1.1:80").is_ok() {
-            if let Ok(addr) = socket.local_addr() {
-                let ip = addr.ip().to_string();
-                if ip != "0.0.0.0" && ip != "127.0.0.1" {
-                    return ip;
+    // 優先使用常見的外部/閘道位址探測預設路由，提升不同路由器與網段的相容性
+    let probe_targets = [
+        "8.8.8.8:80",
+        "1.1.1.1:80",
+        "192.168.1.1:80",
+        "192.168.0.1:80",
+        "192.168.2.1:80",
+        "10.0.0.1:80",
+        "192.168.1.254:80",
+    ];
+
+    for target in probe_targets {
+        if let Ok(socket) = UdpSocket::bind("0.0.0.0:0") {
+            if socket.connect(target).is_ok() {
+                if let Ok(addr) = socket.local_addr() {
+                    let ip = addr.ip().to_string();
+                    if ip != "0.0.0.0" && ip != "127.0.0.1" && !ip.starts_with("169.254.") {
+                        return ip;
+                    }
                 }
             }
         }

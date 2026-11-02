@@ -120,15 +120,26 @@ mod imp {
 
 #[cfg(target_os = "macos")]
 mod imp {
-    use std::process::Command;
+    use std::process::{Child, Command};
+    use std::sync::Mutex;
+
+    static CAFFEINATE_CHILD: Mutex<Option<Child>> = Mutex::new(None);
 
     pub fn set_keep_awake(active: bool) {
         if active {
-            // macOS 內建防休眠工具 caffeinate (-d 防止螢幕睡眠, -i 防止系統閒置睡眠)
-            let _ = Command::new("pkill").args(["-f", "caffeinate -d -i"]).status();
-            let _ = Command::new("caffeinate").args(["-d", "-i"]).spawn();
+            let mut guard = CAFFEINATE_CHILD.lock().unwrap_or_else(|e| e.into_inner());
+            if guard.is_none() {
+                // macOS 內建防休眠工具 caffeinate (-d 防止螢幕睡眠, -i 防止系統閒置睡眠)
+                if let Ok(child) = Command::new("caffeinate").args(["-d", "-i"]).spawn() {
+                    *guard = Some(child);
+                }
+            }
         } else {
-            let _ = Command::new("pkill").args(["-f", "caffeinate -d -i"]).spawn();
+            let mut guard = CAFFEINATE_CHILD.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(mut child) = guard.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
         }
     }
 
