@@ -269,7 +269,7 @@ pub fn handle_remote_command(state: &SharedState, cmd: serde_json::Value) {
                 .unwrap_or_default();
             if !channel_id.is_empty() {
                 if let Ok(mut list) = state.channels.lock() {
-                    list.retain(|c| !(c.custom && c.id == channel_id));
+                    list.retain(|c| c.id != channel_id);
                     crate::config::save_channels(&list);
                 }
                 state.broadcast_state();

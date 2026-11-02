@@ -207,19 +207,17 @@
       });
       wrap.appendChild(btn);
 
-      if (ch.custom) {
-        const delBtn = document.createElement("button");
-        delBtn.className = "del-channel-btn";
-        delBtn.textContent = "×";
-        delBtn.title = "刪除此自訂頻道";
-        delBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          if (confirm(`確定要刪除「${ch.name}」常用按鈕嗎？`)) {
-            sendCommand("delete_channel", { channel_id: ch.id }, `🗑 已刪除：${ch.name}`);
-          }
-        });
-        wrap.appendChild(delBtn);
-      }
+      const delBtn = document.createElement("button");
+      delBtn.className = "del-channel-btn";
+      delBtn.textContent = "×";
+      delBtn.title = "刪除此頻道";
+      delBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (confirm(`確定要刪除「${ch.name}」頻道按鈕嗎？`)) {
+          sendCommand("delete_channel", { channel_id: ch.id }, `🗑 已刪除：${ch.name}`);
+        }
+      });
+      wrap.appendChild(delBtn);
 
       channelsGrid.appendChild(wrap);
     });
