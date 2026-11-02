@@ -1,0 +1,178 @@
+# =============================================================================
+# 1. 機敏資訊、環境變數與憑證 (Secrets, Env & Credentials) —— 最重要！
+# =============================================================================
+# 環境變數檔 (僅保留範例檔)
+.env
+.env.*
+!.env.example
+!.env.template
+!.env.sample
+
+# 私鑰、憑證與加密金鑰
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.cer
+*.der
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+
+# 雲端服務與第三方 API 憑證
+credentials.json
+client_secret*.json
+service-account*.json
+*-firebase-adminsdk-*.json
+gcloud-service-key.json
+.aws/
+.azure/
+.npmrc
+.pypirc
+.netrc
+.htpasswd
+
+# Infrastructure as Code (Terraform 等含機密狀態檔)
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform/
+
+# 本地自訂機密設定檔 (常見命名)
+config.local.*
+settings.local.*
+secrets.*
+!secrets.example.*
+local_settings.py
+appsettings.Development.json
+appsettings.Local.json
+KEY_SESSION.php
+
+# =============================================================================
+# 2. 資料庫、備份與敏感資料集 (Databases, Backups & Sensitive Data)
+# =============================================================================
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.mdb
+*.accdb
+*.sql.gz
+*.dump
+*.bak
+*.backup
+# 若有含個資的匯出檔，建議放於特定本地資料夾並忽略
+private_data/
+customer_data/
+exports/
+uploads/
+config/
+
+# =============================================================================
+# 3. 日誌與除錯暫存檔 (Logs & Debug Dumps) —— 避免 Log 中夾帶 Token 外洩
+# =============================================================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.dmp
+*.stackdump
+
+# =============================================================================
+# 4. AI 工具本地記憶與暫存檔 (AI Tools Local Cache & Scratch)
+# =============================================================================
+.claude/
+.cursor/
+.windsurf/
+.aider*
+# 若有個人本地 AI 筆記不想推上公開 Repo：
+*.local.md
+scratch/
+
+# =============================================================================
+# 5. 常見語言套件與編譯產物 (Dependencies & Build Outputs)
+# =============================================================================
+# Node.js / Frontend
+node_modules/
+dist/
+build/
+out/
+.next/
+.nuxt/
+.output/
+.cache/
+.parcel-cache/
+.turbo/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+ENV/
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# C# / .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Java / Kotlin / Gradle / Maven
+target/
+.gradle/
+*.class
+*.jar
+*.war
+*.ear
+
+# Go / Rust / Tauri
+vendor/
+src-tauri/gen/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# =============================================================================
+# 6. 編輯器與作業系統系統檔 (IDEs & OS Files)
+# =============================================================================
+# VS Code (保留團隊共用的 extensions.json，忽略個人設定)
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+
+# JetBrains IDEs (IntelliJ, PyCharm, WebStorm)
+.idea/
+*.iml
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.Bin/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.directory

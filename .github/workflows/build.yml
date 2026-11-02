@@ -1,0 +1,89 @@
+name: Cross-Platform Build (Windows / Linux / Raspberry Pi / macOS)
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, master]
+  # 支援在 GitHub 網頁 Actions 頁面手動點擊「Run workflow」觸發打包
+  workflow_dispatch:
+
+jobs:
+  build-stb:
+    name: Build (${{ matrix.artifact_name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 1. Windows (x86_64)
+          - os: windows-latest
+            artifact_name: stb-windows-x64
+            binary_path: target/release/stb-livingroom.exe
+            is_linux: false
+
+          # 2. Linux 一般電腦 (x86_64)
+          - os: ubuntu-22.04
+            artifact_name: stb-linux-x64
+            binary_path: target/release/stb-livingroom
+            is_linux: true
+
+          # 3. 樹莓派 Raspberry Pi 4/5 64-bit (ARM64 原生編譯)
+          - os: ubuntu-24.04-arm
+            artifact_name: stb-raspberrypi-arm64
+            binary_path: target/release/stb-livingroom
+            is_linux: true
+
+          # 4. macOS (Apple Silicon ARM64)
+          - os: macos-latest
+            artifact_name: stb-macos-arm64
+            binary_path: target/release/stb-livingroom
+            is_linux: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux / Raspberry Pi system dependencies (WebKitGTK & Audio/Input libs)
+        if: matrix.is_linux
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            alsa-utils \
+            pulseaudio-utils \
+            xdotool \
+            x11-xserver-utils
+
+      - name: Setup Rust Toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Run Automated Tests (Windows & Linux)
+        if: matrix.os == 'windows-latest'
+        run: cargo test
+
+      - name: Build Release Executable
+        run: cargo build --release
+
+      - name: Upload Compiled Executable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            ${{ matrix.binary_path }}
+            STB (機上盒) 操作與安裝手冊.md
+          if-no-files-found: error

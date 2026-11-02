@@ -1,0 +1,18 @@
+{
+  "name": "客廳電視遙控器 (STB)",
+  "short_name": "電視遙控器",
+  "description": "長輩友善大字體客廳電視遙控器",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+# =============================================================================
+# Gitleaks 機密掃描設定檔 (.gitleaks.toml)
+# 說明：繼承官方預設規則庫，並將安全的範本檔 (.env.example) 列入白名單避免誤報
+# =============================================================================
+
+title = "Project Gitleaks Configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "允許安全的環境變數範本檔與說明文件"
+paths = [
+  '''\.env\.example$''',
+  '''\.env\.template$''',
+  '''\.env\.sample$''',
+  '''AI_SECURITY_GUIDELINES\.md$''',
+  '''readme\.txt$'''
+]

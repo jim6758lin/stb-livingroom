@@ -1,0 +1,29 @@
+[package]
+name = "stb-livingroom"
+version = "0.1.0"
+description = "長輩友善客廳電視盒 (Rust + Tauri + PWA 虛擬遙控器)"
+authors = ["STB Project"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png", "custom-protocol"] }
+axum = { version = "0.7", features = ["ws"] }
+tokio = { version = "1", features = ["full"] }
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+qrcode = "0.14"
+rand = "0.8"
+dirs = "5"
+urlencoding = "2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Power",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }

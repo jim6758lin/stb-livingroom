@@ -1,0 +1,70 @@
+# =============================================================================
+# AI 專用忽略清單 (.geminiignore)
+# 作用：從工具底層阻止 AI 索引、搜尋或自動讀取以下機敏檔案與目錄
+# =============================================================================
+
+# 1. 真實環境變數檔 (允許 AI 讀取 .env.example 範本以了解變數名稱)
+.env
+.env.*
+!.env.example
+!.env.template
+!.env.sample
+
+# 2. 私鑰、憑證與加密金鑰
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.cer
+*.der
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+
+# 3. 雲端與第三方認證設定
+credentials.json
+client_secret*.json
+service-account*.json
+*-firebase-adminsdk-*.json
+gcloud-service-key.json
+.aws/
+.azure/
+.npmrc
+.pypirc
+.netrc
+.htpasswd
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+
+# 4. 本地機密設定檔
+config.local.*
+settings.local.*
+secrets.*
+!secrets.example.*
+local_settings.py
+appsettings.Development.json
+appsettings.Local.json
+
+# 5. 本地資料庫、備份與含個資之資料夾
+*.sqlite
+*.sqlite3
+*.db
+*.sql
+*.sql.gz
+*.dump
+*.bak
+*.backup
+private_data/
+customer_data/
+exports/
+uploads/
+
+# 6. 除錯日誌 (防止 Log 中夾帶真實 Token 被 AI 讀取)
+logs/
+*.log
+*.dmp
+*.stackdump

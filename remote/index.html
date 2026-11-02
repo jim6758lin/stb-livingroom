@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="電視遙控器" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
+  <title>📺 客廳電視遙控器</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <!-- 斷線 / 忘記開 Wi-Fi 防呆超大提示遮罩 -->
+  <div id="offline-overlay" class="offline-overlay hidden">
+    <div class="offline-card">
+      <div class="offline-icon" id="overlay-icon">⚠️</div>
+      <h2 id="overlay-title">連不上客廳電視！</h2>
+      <div id="overlay-desc" class="offline-desc">
+        <p>請幫我檢查這兩件事：</p>
+        <ol>
+          <li>📱 手機有沒有連上<strong>家裡的 Wi-Fi</strong>？</li>
+          <li>💻 客廳的電腦有沒有<strong>開機</strong>？</li>
+        </ol>
+      </div>
+      <button id="btn-reconnect" class="giant-btn btn-green">🔄 點此重新連線</button>
+    </div>
+  </div>
+
+  <!-- 主遙控器容器 -->
+  <div class="remote-wrapper">
+    <!-- 頂部連線狀態與目前播放資訊 -->
+    <header class="remote-header">
+      <div class="conn-badge" id="conn-badge">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="conn-text">正在連線電視...</span>
+      </div>
+      <button id="btn-wake-tv" class="wake-pill-btn">📺 喚醒電視畫面</button>
+    </header>
+
+    <!-- 目前電視節目與一鍵加入最愛 -->
+    <section class="now-playing-bar">
+      <div class="now-playing-info">
+        <span class="np-label">目前電視畫面：</span>
+        <strong id="now-playing-title">待機首頁</strong>
+      </div>
+      <button id="btn-save-favorite" class="save-fav-btn">⭐ 存為常用頻道</button>
+    </section>
+
+    <!-- 1. 常用電視頻道（長輩最常用，放最顯眼處） -->
+    <section class="card-section">
+      <div class="section-header">
+        <h2>📺 常用頻道（點一下馬上播）</h2>
+      </div>
+      <div id="remote-channels-grid" class="remote-channels-grid">
+        <!-- 由 app.js 動態載入頻道大按鈕 -->
+      </div>
+    </section>
+
+    <!-- 2. 主播放與音量控制大按鈕 -->
+    <section class="card-section">
+      <div class="section-header">
+        <h2>🔊 播放與聲音控制</h2>
+      </div>
+
+      <!-- 超大暫停/播放鍵 -->
+      <button id="btn-play-pause" class="giant-btn btn-play-pause">
+        ⏯ 暫停 ／ 繼續播放
+      </button>
+
+      <!-- 手動強制點擊右下角略過廣告大按鈕 -->
+      <button id="btn-skip-ad" class="giant-btn btn-orange">
+        ⏭ 略過廣告（點右下角）
+      </button>
+
+      <!-- 音量大聲/小聲 -->
+      <div class="btn-row-2">
+        <button id="btn-vol-down" class="giant-btn btn-blue">
+          🔉 小聲一點
+        </button>
+        <button id="btn-vol-up" class="giant-btn btn-yellow">
+          🔊 大聲一點
+        </button>
+      </div>
+
+      <!-- 快轉/倒退/靜音/全螢幕 -->
+      <div class="btn-row-4">
+        <button id="btn-seek-back" class="mid-btn">⏪ 倒退10秒</button>
+        <button id="btn-seek-fwd" class="mid-btn">⏩ 快轉10秒</button>
+        <button id="btn-mute" class="mid-btn">🔇 靜音</button>
+        <button id="btn-fullscreen" class="mid-btn">🖥 滿版切換</button>
+      </div>
+
+      <!-- 字幕開關與播放速度控制 -->
+      <button id="btn-subtitles" class="giant-btn btn-purple">
+        💬 字幕開／關（大字幕）
+      </button>
+
+      <div class="speed-control-box">
+        <div class="speed-label">⏱ 調整講話與播放速度：</div>
+        <div class="btn-row-3">
+          <button id="btn-speed-slower" class="speed-btn">🐢 放慢</button>
+          <button id="btn-speed-normal" class="speed-btn speed-normal">⚡ 正常 1x</button>
+          <button id="btn-speed-faster" class="speed-btn">🐇 加快</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. 語音與文字搜尋 -->
+    <section class="card-section">
+      <div class="section-header">
+        <h2>🔍 找節目、新聞或老歌</h2>
+      </div>
+      <p class="helper-tip">💡 點下方輸入框後，可按手機鍵盤的「🎤 麥克風」用講的！</p>
+      <div class="search-input-wrap">
+        <input
+          type="search"
+          id="remote-search-input"
+          placeholder="點此說話或輸入（如：包青天、費玉清）"
+          autocomplete="off"
+        />
+        <button id="btn-clear-search" class="clear-input-btn" title="清除文字">✖</button>
+      </div>
+      <div class="btn-row-2">
+        <button id="btn-search-direct" class="giant-btn btn-green">
+          ▶️ 搜尋並直接播
+        </button>
+        <button id="btn-search-list" class="giant-btn btn-slate">
+          📋 在電視列出來選
+        </button>
+      </div>
+
+      <!-- 電視搜尋結果編號選片面板 -->
+      <div id="picker-panel" class="picker-panel">
+        <div class="picker-title">👆 若電視正在顯示搜尋列表，點數字即可播放：</div>
+        <div class="btn-row-3">
+          <button class="num-pick-btn" data-idx="1">播第 1 部</button>
+          <button class="num-pick-btn" data-idx="2">播第 2 部</button>
+          <button class="num-pick-btn" data-idx="3">播第 3 部</button>
+          <button class="num-pick-btn" data-idx="4">播第 4 部</button>
+          <button class="num-pick-btn" data-idx="5">播第 5 部</button>
+          <button class="num-pick-btn" data-idx="6">播第 6 部</button>
+        </div>
+        <div class="btn-row-2" style="margin-top: 10px;">
+          <button id="btn-scroll-up" class="mid-btn">⬆️ 畫面往上滑</button>
+          <button id="btn-scroll-down" class="mid-btn">⬇️ 畫面往下滑</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. 底部系統控制（回首頁 / 退出電視） -->
+    <section class="card-section bottom-actions">
+      <div class="btn-row-2">
+        <button id="btn-tv-home" class="giant-btn btn-slate">
+          🏠 電視回首頁
+        </button>
+        <button id="btn-tv-exit" class="giant-btn btn-red">
+          🚪 關掉電視回電腦
+        </button>
+      </div>
+    </section>
+  </div>
+
+  <!-- 頂部操作成功快閃提示 -->
+  <div id="toast-msg" class="toast-msg hidden">已傳送指令</div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

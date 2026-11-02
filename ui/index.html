@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>客廳電視盒 (STB) - 待機首頁</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="tv-container">
+    <!-- 頂部狀態與大時鐘列 -->
+    <header class="tv-header">
+      <div class="brand-area">
+        <span class="tv-logo">📺</span>
+        <div>
+          <h1>客廳大螢幕電視盒</h1>
+          <p class="subtitle">長輩友善 · 手機智慧遙控播放系統</p>
+        </div>
+      </div>
+
+      <div class="clock-area">
+        <div id="tv-time" class="tv-time">--:--</div>
+        <div id="tv-date" class="tv-date">載入日期中...</div>
+      </div>
+
+      <div class="status-area">
+        <div class="status-pill" id="ws-status-pill">
+          <span class="dot online"></span>
+          <span id="client-count-text">遙控服務待命中</span>
+        </div>
+        <button id="btn-minimize" class="exit-btn" title="最小化退回一般電腦桌面 (快捷鍵 Esc)">
+          🚪 退回電腦桌面 (Esc)
+        </button>
+      </div>
+    </header>
+
+    <!-- 主內容雙欄區 -->
+    <main class="tv-main">
+      <!-- 左側：手機掃碼配對區 -->
+      <section class="qr-panel">
+        <div class="qr-badge">📱 手機遙控器配對（掃一次永久有效）</div>
+        <div class="qr-box" id="qr-container">
+          <div class="qr-loading">正在產生配對 QR Code...</div>
+        </div>
+        <div class="qr-steps">
+          <div class="step-item">
+            <span class="step-num">1</span>
+            <span>確認手機已連上<strong>家裡 Wi-Fi</strong></span>
+          </div>
+          <div class="step-item">
+            <span class="step-num">2</span>
+            <span>打開手機相機<strong>掃描上方 QR Code</strong></span>
+          </div>
+          <div class="step-item">
+            <span class="step-num">3</span>
+            <span>點選<strong>「加入主畫面」</strong>，以後直接點手機桌面就能遙控！</span>
+          </div>
+        </div>
+        <div class="network-info">
+          <div>內網連線位址：<strong id="lan-url-text">讀取中...</strong></div>
+          <div id="mdns-url-row" class="mdns-row">本機備援位址：<span id="mdns-url-text">--</span></div>
+        </div>
+      </section>
+
+      <!-- 右側：常用頻道牆與快速搜尋 -->
+      <section class="channels-panel">
+        <div class="search-bar-box">
+          <input
+            type="text"
+            id="tv-search-input"
+            placeholder="🔍 在此輸入想看的節目、新聞或老歌..."
+            autocomplete="off"
+          />
+          <button id="tv-search-play-btn" class="primary-action-btn">▶️ 直接播放</button>
+          <button id="tv-search-list-btn" class="secondary-action-btn">🔍 搜尋列表</button>
+        </div>
+
+        <div class="section-title-row">
+          <h2>⚡ 常用電視頻道（拿起手機即可一鍵切換）</h2>
+          <span class="channel-hint">點擊下方卡片也可直接在電視播放</span>
+        </div>
+
+        <div id="tv-channels-grid" class="channels-grid">
+          <!-- 由 app.js 動態渲染常用頻道大卡片 -->
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

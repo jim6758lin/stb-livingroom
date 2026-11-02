@@ -1,0 +1,21 @@
+# =============================================================================
+# Git Pre-commit 自動安全檢查設定檔 (.pre-commit-config.yaml)
+# 作用：在每次執行 `git commit` 時，自動掃描程式碼是否誤含私鑰、API Key 或過大檔案，
+#       若偵測到機密資訊，將直接阻擋 Commit，避免機密進入 Git 歷史紀錄。
+# =============================================================================
+
+repos:
+  # 1. 基礎檔案安全檢查 (防止私鑰與大型資料集誤上傳)
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: detect-private-key          # 自動偵測是否誤加入 RSA/SSH/PEM 私鑰
+      - id: check-added-large-files     # 防止誤傳超過 1MB 的大型資料庫或備份檔
+        args: ['--maxkb=1024']
+      - id: check-merge-conflict        # 防止把未解決的 Git 衝突標記推上去
+
+  # 2. Gitleaks 機密掃描器 (自動掃描程式碼中的 API Key、Token 與高亂度密碼)
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.0
+    hooks:
+      - id: gitleaks
