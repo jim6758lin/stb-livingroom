@@ -20,6 +20,8 @@ const REMOTE_APP_JS: &str = include_str!("../../remote/app.js");
 const REMOTE_MANIFEST_JSON: &str = include_str!("../../remote/manifest.json");
 const REMOTE_SW_JS: &str = include_str!("../../remote/sw.js");
 const REMOTE_ICON_SVG: &str = include_str!("../../remote/icon.svg");
+const REMOTE_ICON_192_PNG: &[u8] = include_bytes!("../../remote/icon-192.png");
+const REMOTE_ICON_512_PNG: &[u8] = include_bytes!("../../remote/icon-512.png");
 
 #[derive(Deserialize, Default)]
 pub struct WsAuthQuery {
@@ -35,16 +37,29 @@ pub fn build_router(state: SharedState) -> Router {
         .route("/manifest.json", get(serve_manifest))
         .route("/sw.js", get(serve_sw))
         .route("/icon.svg", get(serve_icon))
+        .route("/icon-192.png", get(serve_icon_192))
+        .route("/icon-512.png", get(serve_icon_512))
         .route("/ws", get(ws_handler))
         .with_state(state)
+        .layer(axum::middleware::from_fn(add_security_headers))
 }
 
 pub async fn start_axum_server(state: SharedState, port: u16) {
     let app = build_router(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    if let Ok(listener) = tokio::net::TcpListener::bind(addr).await {
-        let _ = axum::serve(listener, app).await;
+    match tokio::net::TcpListener::bind(addr).await {
+        Ok(listener) => {
+            if let Err(err) = axum::serve(listener, app).await {
+                eprintln!("[STB] 遙控伺服器執行失敗 (port {}): {}", port, err);
+            }
+        }
+        Err(err) => {
+            eprintln!(
+                "[STB] 無法綁定遙控伺服器連線埠 {}：{}（可能被其他程式占用）",
+                port, err
+            );
+        }
     }
 }
 
@@ -106,6 +121,24 @@ async fn serve_icon() -> Response {
         .into_response()
 }
 
+async fn serve_icon_192() -> Response {
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "image/png")],
+        REMOTE_ICON_192_PNG,
+    )
+        .into_response()
+}
+
+async fn serve_icon_512() -> Response {
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "image/png")],
+        REMOTE_ICON_512_PNG,
+    )
+        .into_response()
+}
+
 async fn ws_handler(
     ws: WebSocketUpgrade,
     Query(query): Query<WsAuthQuery>,
@@ -113,6 +146,25 @@ async fn ws_handler(
 ) -> impl IntoResponse {
     let provided = query.token.unwrap_or_default();
     ws.on_upgrade(move |socket| handle_ws_client(socket, provided, state))
+}
+
+async fn add_security_headers(
+    req: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> Response {
+    let mut res = next.run(req).await;
+    let headers = res.headers_mut();
+    let _ = headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        axum::http::HeaderValue::from_static("nosniff"),
+    );
+    let _ = headers.insert(
+        header::HeaderName::from_static("content-security-policy"),
+        axum::http::HeaderValue::from_static(
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self'; media-src 'self'",
+        ),
+    );
+    res
 }
 
 async fn handle_ws_client(socket: WebSocket, provided_token: String, state: SharedState) {

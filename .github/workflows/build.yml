@@ -73,7 +73,7 @@ jobs:
           workspaces: ". -> target"
 
       - name: Run Automated Tests (Windows & Linux)
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-latest' || startsWith(matrix.os, 'ubuntu')
         run: cargo test
 
       - name: Build Release Executable
