@@ -429,29 +429,43 @@
 
     scrollPage: function (deltaY) {
       document.documentElement.classList.remove("stb-tv-fullscreen");
-      window.scrollBy({ top: deltaY, behavior: "smooth" });
+      const dir = deltaY >= 0 ? 1 : -1;
+      const step = Math.max(420, Math.round(window.innerHeight * 0.72)) * dir;
+      window.scrollBy({ top: step, behavior: "smooth" });
+      if (dir > 0) {
+        window.__STB_OSD__.show("⬇️ 換下一批影片（畫面已重新編號 1～6）");
+      } else {
+        window.__STB_OSD__.show("⬆️ 回上一批影片（畫面已重新編號 1～6）");
+      }
+      setTimeout(updateViewportNumberBadges, 220);
+      setTimeout(updateViewportNumberBadges, 520);
     },
 
     selectVideoByIndex: function (oneBasedIndex) {
-      const cards = getVisibleVideoCards();
-      const target = cards[oneBasedIndex - 1];
+      updateViewportNumberBadges();
+      let target = document.querySelector(`[data-stb-pick-index="${oneBasedIndex}"]`);
       if (!target) {
-        window.__STB_OSD__.show(`⚠️ 找不到第 ${oneBasedIndex} 部影片`);
+        const cards = getViewportVideoCards();
+        target = cards[oneBasedIndex - 1];
+      }
+      if (!target) {
+        window.__STB_OSD__.show(`⚠️ 目前畫面找不到第 ${oneBasedIndex} 部影片`);
         return;
       }
       const link =
         target.querySelector("a#video-title") ||
+        target.querySelector("a#video-title-link") ||
         target.querySelector("a#thumbnail") ||
-        target.querySelector("a[href*='/watch']");
+        target.querySelector("a[href*='/watch'], a[href*='/shorts']");
       if (link && link.href) {
         const title = (link.textContent || "").trim() || `第 ${oneBasedIndex} 部影片`;
-        window.__STB_OSD__.show(`📺 正在播放：${title.slice(0, 20)}`);
+        window.__STB_OSD__.show(`📺 正在播放 [${oneBasedIndex}]：${title.slice(0, 18)}`);
         window.location.href = link.href;
       }
     }
   };
 
-  function getVisibleVideoCards() {
+  function getAllCandidateCards() {
     const selectors = [
       "ytd-video-renderer",
       "ytd-rich-item-renderer",
@@ -462,6 +476,81 @@
     return all.filter((el) => {
       const link = el.querySelector("a[href*='/watch'], a[href*='/shorts']");
       return link && el.offsetParent !== null;
+    });
+  }
+
+  // 取得目前電視螢幕可視範圍內的影片卡片，並依「由上而下、由左而右」視覺順序排列
+  function getViewportVideoCards() {
+    const all = getAllCandidateCards();
+    const viewH = window.innerHeight || 720;
+    const viewW = window.innerWidth || 1280;
+
+    let visible = all.filter((el) => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 100 || rect.height < 60) return false;
+      const centerY = rect.top + rect.height * 0.35;
+      return centerY >= 55 && centerY <= viewH - 30 && rect.right > 0 && rect.left < viewW;
+    });
+
+    if (visible.length === 0) {
+      visible = all.filter((el) => {
+        const rect = el.getBoundingClientRect();
+        return rect.bottom > 70 && rect.top < viewH - 30;
+      });
+    }
+
+    visible.sort((a, b) => {
+      const ra = a.getBoundingClientRect();
+      const rb = b.getBoundingClientRect();
+      if (Math.abs(ra.top - rb.top) > 45) {
+        return ra.top - rb.top;
+      }
+      return ra.left - rb.left;
+    });
+
+    return visible;
+  }
+
+  // 動態將目前畫面可視的前 6 部影片掛上 [1]~[6] 號牌，並移除已滑出畫面外的舊號牌
+  function updateViewportNumberBadges() {
+    if (!location.hostname.includes("youtube.com")) return;
+    if (location.pathname.startsWith("/watch")) return;
+
+    const inViewCards = getViewportVideoCards().slice(0, 6);
+    const inViewSet = new Set(inViewCards);
+
+    // 清除不在前 6 名可視範圍內的舊標籤
+    document.querySelectorAll("[data-stb-pick-index], .stb-num-badge").forEach((el) => {
+      if (el.classList && el.classList.contains("stb-num-badge")) {
+        const parent = el.parentElement;
+        if (!parent || !inViewSet.has(parent)) {
+          el.remove();
+        }
+      } else if (!inViewSet.has(el)) {
+        el.removeAttribute("data-stb-pick-index");
+        el.style.outline = "";
+        el.style.borderRadius = "";
+      }
+    });
+
+    // 為目前電視畫面上的前 6 部影片掛上最新 [1]~[6] 號牌
+    inViewCards.forEach((card, idx) => {
+      const num = idx + 1;
+      card.style.position = "relative";
+      card.setAttribute("data-stb-pick-index", String(num));
+      card.style.outline = "3px solid rgba(250, 204, 21, 0.65)";
+      card.style.borderRadius = "14px";
+
+      let badge = card.querySelector(".stb-num-badge");
+      if (!badge) {
+        badge = document.createElement("div");
+        badge.className = "stb-num-badge";
+        card.appendChild(badge);
+      }
+      const expectedText = `按手機 [${num}] 播放`;
+      if (badge.textContent !== expectedText) {
+        badge.textContent = expectedText;
+      }
     });
   }
 
@@ -534,59 +623,64 @@
       document.documentElement.classList.remove("stb-tv-fullscreen");
     }
 
-    // (D) 搜尋結果頁：智慧自動播放第一部影片 / 直播，或標上 [第 1~6 部] 大字標籤
+    // (D) 非播放頁時，自動將「目前電視螢幕可視範圍內」的前 6 部影片動態掛上 [1]~[6] 號牌
+    if (!location.pathname.startsWith("/watch")) {
+      updateViewportNumberBadges();
+    }
+
+    // (E) 搜尋結果頁：若帶有 stb_autoplay=1，智慧自動點播第一部影片或 LIVE 直播
     if (location.pathname.startsWith("/results")) {
       const params = new URLSearchParams(location.search);
       const wantAutoplay = params.get("stb_autoplay") === "1";
       const wantLive = params.get("stb_live") === "1";
 
-      const cards = getVisibleVideoCards();
-      if (cards.length > 0) {
-        cards.slice(0, 8).forEach((card, idx) => {
-          card.style.position = "relative";
-          if (!card.querySelector(".stb-num-badge")) {
-            const badge = document.createElement("div");
-            badge.className = "stb-num-badge";
-            badge.textContent = `按手機 [${idx + 1}] 播放`;
-            card.appendChild(badge);
-          }
-        });
+      const cards = getAllCandidateCards();
+      if (cards.length > 0 && wantAutoplay && autoPlayTriggeredForUrl !== location.href) {
+        let chosenCard = cards[0];
+        if (wantLive) {
+          const liveCard = cards.find((c) => {
+            const html = c.innerHTML || "";
+            const text = c.innerText || "";
+            return (
+              html.includes("LIVE") ||
+              html.includes("badge-style-type-live") ||
+              text.includes("直播中") ||
+              text.includes("LIVE")
+            );
+          });
+          if (liveCard) chosenCard = liveCard;
+        }
 
-        if (wantAutoplay && autoPlayTriggeredForUrl !== location.href) {
-          let chosenCard = cards[0];
-          if (wantLive) {
-            const liveCard = cards.find((c) => {
-              const html = c.innerHTML || "";
-              const text = c.innerText || "";
-              return (
-                html.includes("LIVE") ||
-                html.includes("badge-style-type-live") ||
-                text.includes("直播中") ||
-                text.includes("LIVE")
-              );
-            });
-            if (liveCard) chosenCard = liveCard;
-          }
+        const link =
+          chosenCard.querySelector("a#video-title") ||
+          chosenCard.querySelector("a#video-title-link") ||
+          chosenCard.querySelector("a#thumbnail") ||
+          chosenCard.querySelector("a[href*='/watch']");
 
-          const link =
-            chosenCard.querySelector("a#video-title") ||
-            chosenCard.querySelector("a#thumbnail") ||
-            chosenCard.querySelector("a[href*='/watch']");
-
-          if (link && link.href) {
-            autoPlayTriggeredForUrl = location.href;
-            const title = (link.textContent || "").trim() || "精選節目";
-            window.__STB_OSD__.show(`📺 自動為您播放：${title.slice(0, 18)}`);
-            setTimeout(() => {
-              window.location.href = link.href;
-            }, 350);
-          }
+        if (link && link.href) {
+          autoPlayTriggeredForUrl = location.href;
+          const title = (link.textContent || "").trim() || "精選節目";
+          window.__STB_OSD__.show(`📺 自動為您播放：${title.slice(0, 18)}`);
+          setTimeout(() => {
+            window.location.href = link.href;
+          }, 350);
         }
       }
     }
   }
 
   setInterval(runYouTubeGuardian, 800);
+
+  // 當畫面捲動（不論是用手機翻頁或電腦滑鼠滾輪）時，即時更新畫面上的 [1]~[6] 號牌
+  let scrollBadgeTimer = null;
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (scrollBadgeTimer) clearTimeout(scrollBadgeTimer);
+      scrollBadgeTimer = setTimeout(updateViewportNumberBadges, 140);
+    },
+    { passive: true }
+  );
 
   // 跨平台 Esc 鍵退出信號（支援 Linux / 樹莓派 / macOS 在 YouTube 頁面按 Esc 直接最小化回桌面）
   window.addEventListener(

@@ -330,11 +330,11 @@
   });
 
   document.getElementById("btn-scroll-up").addEventListener("click", () => {
-    sendCommand("scroll", { delta: -550 }, "⬆️ 往上滑動");
+    sendCommand("scroll", { delta: -600 }, "⬆️ 回上一批影片 (重新編號 1~6)");
   });
 
   document.getElementById("btn-scroll-down").addEventListener("click", () => {
-    sendCommand("scroll", { delta: 550 }, "⬇️ 往下滑動");
+    sendCommand("scroll", { delta: 600 }, "⬇️ 看下一批影片 (重新編號 1~6)");
   });
 
   // 存為常用頻道按鈕
