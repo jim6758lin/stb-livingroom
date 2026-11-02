@@ -50,14 +50,15 @@ pub async fn start_axum_server(state: SharedState, port: u16) {
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     match tokio::net::TcpListener::bind(addr).await {
         Ok(listener) => {
+            tracing::info!("remote server listening on port {}", port);
             if let Err(err) = axum::serve(listener, app).await {
-                eprintln!("[STB] 遙控伺服器執行失敗 (port {}): {}", port, err);
+                tracing::error!("remote server failed on port {}: {}", port, err);
             }
         }
         Err(err) => {
-            eprintln!(
-                "[STB] 無法綁定遙控伺服器連線埠 {}：{}（可能被其他程式占用）",
-                port, err
+            tracing::error!(
+                "failed to bind remote server port {} ({}): {}",
+                port, "possibly in use", err
             );
         }
     }
@@ -205,4 +206,36 @@ async fn handle_ws_client(socket: WebSocket, provided_token: String, state: Shar
 
     send_task.abort();
     state.connected_clients.fetch_sub(1, Ordering::SeqCst);
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::AppState;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn test_pwa_http_endpoints() {
+        let state = Arc::new(AppState::new(0));
+        let app = build_router(state);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+        stream
+            .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+            .await
+            .unwrap();
+        let mut buf = Vec::new();
+        stream.read_to_end(&mut buf).await.unwrap();
+        let resp = String::from_utf8_lossy(&buf);
+        assert!(resp.starts_with("HTTP/1.1 200 OK"));
+        assert!(resp.contains("客廳電視遙控器"));
+    }
 }

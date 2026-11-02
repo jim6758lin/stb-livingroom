@@ -244,3 +244,52 @@ pub fn generate_qr_svg(url: &str) -> String {
         Err(_) => String::new(),
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pairing_token_generation_and_persistence() {
+        let token1 = load_or_create_pairing_token();
+        assert!(token1.len() >= 16);
+        let token2 = load_or_create_pairing_token();
+        assert_eq!(token1, token2, "持久化 Token 重複讀取應保持一致，免除長輩重掃 QR Code");
+    }
+
+    #[test]
+    fn test_qr_svg_generation() {
+        let svg = generate_qr_svg("http://192.168.1.100:8765/?token=testDummyToken123456");
+        assert!(svg.contains("<svg"));
+        assert!(svg.contains("</svg>"));
+    }
+
+    #[test]
+    fn test_channel_and_search_url_builders() {
+        let live_ch = ChannelItem {
+            id: "ttv".into(),
+            name: "台視新聞".into(),
+            icon: "📰".into(),
+            mode: "live_search".into(),
+            target: "台視新聞 24小時直播".into(),
+            custom: false,
+        };
+        let url = build_channel_url(&live_ch);
+        assert!(url.starts_with("https://www.youtube.com/results?search_query="));
+        assert!(url.contains("stb_autoplay=1"));
+        assert!(url.contains("stb_live=1"));
+
+        let search_url = build_search_url("包青天", true);
+        assert!(search_url.contains("stb_autoplay=1"));
+        let list_url = build_search_url("包青天", false);
+        assert!(list_url.contains("stb_autoplay=0"));
+    }
+
+    #[test]
+    fn test_default_channels_loaded() {
+        let channels = load_channels();
+        assert!(!channels.is_empty());
+        assert!(channels.iter().any(|c| c.name.contains("台視新聞")));
+    }
+}

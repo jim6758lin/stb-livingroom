@@ -19,6 +19,8 @@ qrcode = "0.14"
 rand = "0.8"
 dirs = "5"
 urlencoding = "2"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [

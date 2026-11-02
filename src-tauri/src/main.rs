@@ -22,6 +22,8 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
+use tracing::info;
+use tracing_subscriber::EnvFilter;
 use tokio::sync::broadcast;
 
 pub type SharedState = Arc<AppState>;
@@ -250,6 +252,11 @@ fn setup_tray(app: &AppHandle, state: SharedState) -> tauri::Result<()> {
 }
 
 fn main() {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .try_init();
+
+    info!("starting STB living room app");
     let port: u16 = std::env::var("STB_PORT")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -314,121 +321,4 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("啟動 STB 客廳電視盒應用程式失敗");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::{build_channel_url, build_search_url};
-    #[test]
-    fn test_pairing_token_generation_and_persistence() {
-        let token1 = load_or_create_pairing_token();
-        assert!(token1.len() >= 16);
-        let token2 = load_or_create_pairing_token();
-        assert_eq!(token1, token2, "持久化 Token 重複讀取應保持一致，免除長輩重掃 QR Code");
-    }
-
-    #[test]
-    fn test_qr_svg_generation() {
-        let svg = generate_qr_svg("http://192.168.1.100:8765/?token=testDummyToken123456");
-        assert!(svg.contains("<svg"));
-        assert!(svg.contains("</svg>"));
-    }
-
-    #[test]
-    fn test_channel_and_search_url_builders() {
-        let live_ch = ChannelItem {
-            id: "ttv".into(),
-            name: "台視新聞".into(),
-            icon: "📰".into(),
-            mode: "live_search".into(),
-            target: "台視新聞 24小時直播".into(),
-            custom: false,
-        };
-        let url = build_channel_url(&live_ch);
-        assert!(url.starts_with("https://www.youtube.com/results?search_query="));
-        assert!(url.contains("stb_autoplay=1"));
-        assert!(url.contains("stb_live=1"));
-
-        let search_url = build_search_url("包青天", true);
-        assert!(search_url.contains("stb_autoplay=1"));
-        let list_url = build_search_url("包青天", false);
-        assert!(list_url.contains("stb_autoplay=0"));
-    }
-
-    #[test]
-    fn test_default_channels_loaded() {
-        let channels = load_channels();
-        assert!(!channels.is_empty());
-        assert!(channels.iter().any(|c| c.name.contains("台視新聞")));
-    }
-
-    #[test]
-    fn test_parse_skip_coords_from_title() {
-        let title = "台視新聞 - YouTube [STB_SKIP:0.9350,0.8650]";
-        let coords = parse_skip_coords_from_title(title).expect("應成功解析跳過廣告按鈕座標比例");
-        assert!((coords.0 - 0.9350).abs() < 1e-4);
-        assert!((coords.1 - 0.8650).abs() < 1e-4);
-        assert_eq!(strip_skip_marker(title), "台視新聞 - YouTube");
-    }
-
-    #[test]
-    fn test_save_and_delete_custom_favorite_channel() {
-        let state = Arc::new(AppState::new(8765));
-        let before_len = state.channels.lock().unwrap().len();
-
-        handle_remote_command(
-            &state,
-            json!({
-                "action": "save_favorite",
-                "name": "測試長輩最愛老歌",
-                "fallback_query": "費玉清精選"
-            }),
-        );
-
-        let custom_id = {
-            let list = state.channels.lock().unwrap();
-            assert_eq!(list.len(), before_len + 1);
-            let added = list.last().unwrap();
-            assert_eq!(added.name, "測試長輩最愛老歌");
-            assert!(added.custom);
-            added.id.clone()
-        };
-
-        handle_remote_command(
-            &state,
-            json!({
-                "action": "delete_channel",
-                "channel_id": custom_id
-            }),
-        );
-
-        let after_len = state.channels.lock().unwrap().len();
-        assert_eq!(after_len, before_len);
-    }
-
-    #[tokio::test]
-    async fn test_pwa_http_endpoints() {
-        let state = Arc::new(AppState::new(0));
-        let app = server::build_router(state);
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-
-        tokio::spawn(async move {
-            let _ = axum::serve(listener, app).await;
-        });
-
-        // 透過標準 TCP stream 驗證內嵌 PWA 首頁與 manifest 正常回應 200 OK
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
-        stream
-            .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
-            .await
-            .unwrap();
-        let mut buf = Vec::new();
-        stream.read_to_end(&mut buf).await.unwrap();
-        let resp = String::from_utf8_lossy(&buf);
-        assert!(resp.starts_with("HTTP/1.1 200 OK"));
-        assert!(resp.contains("客廳電視遙控器"));
-    }
 }

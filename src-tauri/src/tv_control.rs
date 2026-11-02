@@ -384,3 +384,56 @@ pub fn spawn_background_monitors(state: SharedState) {
         }
     });
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::AppState;
+    use serde_json::json;
+    use std::sync::Arc;
+
+    #[test]
+    fn test_parse_skip_coords_from_title() {
+        let title = "台視新聞 - YouTube [STB_SKIP:0.9350,0.8650]";
+        let coords = parse_skip_coords_from_title(title).expect("應成功解析跳過廣告按鈕座標比例");
+        assert!((coords.0 - 0.9350).abs() < 1e-4);
+        assert!((coords.1 - 0.8650).abs() < 1e-4);
+        assert_eq!(strip_skip_marker(title), "台視新聞 - YouTube");
+    }
+
+    #[test]
+    fn test_save_and_delete_custom_favorite_channel() {
+        let state = Arc::new(AppState::new(8765));
+        let before_len = state.channels.lock().unwrap().len();
+
+        handle_remote_command(
+            &state,
+            json!({
+                "action": "save_favorite",
+                "name": "測試長輩最愛老歌",
+                "fallback_query": "費玉清精選"
+            }),
+        );
+
+        let custom_id = {
+            let list = state.channels.lock().unwrap();
+            assert_eq!(list.len(), before_len + 1);
+            let added = list.last().unwrap();
+            assert_eq!(added.name, "測試長輩最愛老歌");
+            assert!(added.custom);
+            added.id.clone()
+        };
+
+        handle_remote_command(
+            &state,
+            json!({
+                "action": "delete_channel",
+                "channel_id": custom_id
+            }),
+        );
+
+        let after_len = state.channels.lock().unwrap().len();
+        assert_eq!(after_len, before_len);
+    }
+}
