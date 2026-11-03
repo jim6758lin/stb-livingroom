@@ -1,4 +1,4 @@
-const CACHE_NAME = "stb-remote-pwa-v4";
+const CACHE_NAME = "stb-remote-pwa-v5";
 const ASSETS = ["/", "/style.css", "/app.js", "/manifest.json", "/icon.svg"];
 
 self.addEventListener("install", (event) => {

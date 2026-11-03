@@ -384,6 +384,37 @@ body {
   margin-bottom: 10px;
 }
 
+.dpad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.dpad-btn {
+  min-height: 70px;
+  background: #334155;
+  color: #ffffff;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 16px;
+  font-size: 22px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.4);
+}
+
+.dpad-btn.dpad-ok {
+  background: #ea580c;
+  color: #ffffff;
+  border-color: #fde047;
+  font-size: 23px;
+}
+
+.dpad-btn:active {
+  transform: translateY(3px) scale(0.98);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+}
+
 .num-pick-btn {
   min-height: 66px;
   background: #1e3a8a;

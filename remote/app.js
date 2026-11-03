@@ -319,11 +319,32 @@
     }
   });
 
+  // 十字方向鍵與確定鍵導航
+  document.getElementById("btn-dpad-up").addEventListener("click", () => {
+    sendCommand("move_focus", { dir: "up" }, "⬆️ 往上移動外框");
+  });
+
+  document.getElementById("btn-dpad-down").addEventListener("click", () => {
+    sendCommand("move_focus", { dir: "down" }, "⬇️ 往下移動外框");
+  });
+
+  document.getElementById("btn-dpad-left").addEventListener("click", () => {
+    sendCommand("move_focus", { dir: "left" }, "⬅️ 往左移動外框");
+  });
+
+  document.getElementById("btn-dpad-right").addEventListener("click", () => {
+    sendCommand("move_focus", { dir: "right" }, "➡️ 往右移動外框");
+  });
+
+  document.getElementById("btn-dpad-ok").addEventListener("click", () => {
+    sendCommand("activate_focused", {}, "🆗 播放目前選中項目");
+  });
+
   // 搜尋列表數字選片
   document.querySelectorAll(".num-pick-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const idx = parseInt(btn.getAttribute("data-idx") || "1", 10);
-      sendCommand("select_video", { index: idx }, `📺 播放第 ${idx} 部影片`);
+      sendCommand("select_video", { index: idx }, `📺 播放 [${idx}] 號影片`);
     });
   });
 

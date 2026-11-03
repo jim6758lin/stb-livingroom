@@ -205,6 +205,31 @@ pub fn handle_remote_command(state: &SharedState, cmd: serde_json::Value) {
                 ));
             }
         }
+        "move_focus" => {
+            let dir = cmd
+                .get("dir")
+                .and_then(|v| v.as_str())
+                .unwrap_or("down");
+            let safe_dir = match dir {
+                "up" => "up",
+                "left" => "left",
+                "right" => "right",
+                _ => "down",
+            };
+            wake_tv_window(state);
+            if let Some(win) = state.get_main_window() {
+                let _ = win.eval(&format!(
+                    "window.__STB_CTRL__ && window.__STB_CTRL__.moveFocus('{}');",
+                    safe_dir
+                ));
+            }
+        }
+        "activate_focused" => {
+            wake_tv_window(state);
+            if let Some(win) = state.get_main_window() {
+                let _ = win.eval("window.__STB_CTRL__ && window.__STB_CTRL__.activateFocused();");
+            }
+        }
         "scroll" => {
             let delta = cmd.get("delta").and_then(|v| v.as_i64()).unwrap_or(500);
             if let Some(win) = state.get_main_window() {
@@ -384,7 +409,6 @@ pub fn spawn_background_monitors(state: SharedState) {
         }
     });
 }
-
 
 #[cfg(test)]
 mod tests {

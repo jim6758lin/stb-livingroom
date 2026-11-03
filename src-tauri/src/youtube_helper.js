@@ -1,4 +1,6 @@
-// STB 電視端全域注入輔助腳本 (OSD 顯示、YouTube 自動跳廣告、手動右下角強制點擊跳廣告、智慧直播點播、免滑鼠全螢幕)
+// STB 電視端全域注入輔助腳本
+// 包含：OSD 視覺回饋、YouTube 自動/手動跳廣告、免滑鼠滿版、大字幕與語速控制、
+// 十字方向鍵空間焦點導航 (Spatial D-Pad Navigation) + [1]~[6] 動態視野快捷鍵雙軌選片（完整支援一般影片、播放清單/合輯、Shorts）
 (function () {
   if (window.__STB_HELPER_INITIALIZED__) return;
   window.__STB_HELPER_INITIALIZED__ = true;
@@ -24,7 +26,7 @@
         "border-radius: 24px",
         "padding: 18px 42px",
         "font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif",
-        "font-size: 40px",
+        "font-size: 38px",
         "font-weight: 900",
         "letter-spacing: 1.5px",
         "box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75)",
@@ -65,7 +67,6 @@
     }
   };
 
-  // 顯示視覺點擊準星光圈（pointer-events: none 絕不阻擋系統真實滑鼠點擊）
   function showClickRipple(x, y) {
     if (!document.body) return;
     const ripple = document.createElement("div");
@@ -94,7 +95,7 @@
   }
 
   // =========================================================================
-  // 2. 免滑鼠全螢幕劇院模式 (CSS 100vw x 100vh 滿版播放器)
+  // 2. 免滑鼠全螢幕劇院模式、大字幕與焦點外框樣式
   // =========================================================================
   function injectStbStyles() {
     if (document.getElementById("__stb_custom_styles__")) return;
@@ -132,7 +133,7 @@
         top: 0 !important;
         object-fit: contain !important;
       }
-      /* 適老化大字幕強化：讓 YouTube CC 字幕在電視上更大、更清晰好讀 */
+      /* 適老化大字幕強化 */
       .ytp-caption-window-container .ytp-caption-segment {
         font-size: 36px !important;
         font-weight: 800 !important;
@@ -142,20 +143,46 @@
         border-radius: 8px !important;
         text-shadow: 0 2px 4px #000 !important;
       }
+      /* [1]~[6] 數字快捷標籤 */
       .stb-num-badge {
         position: absolute;
-        top: 10px;
-        left: 10px;
+        top: 8px;
+        left: 8px;
         background: #facc15;
         color: #0f172a;
         border: 3px solid #ffffff;
-        border-radius: 14px;
-        padding: 6px 16px;
-        font-size: 28px;
+        border-radius: 12px;
+        padding: 4px 12px;
+        font-size: 24px;
+        font-weight: 900;
+        z-index: 9998;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.75);
+        pointer-events: none;
+        line-height: 1.15;
+      }
+      /* 十字方向鍵目前 Focus 選取項目的超醒目外框與標籤 */
+      .stb-focused-card {
+        outline: 6px solid #f97316 !important;
+        outline-offset: 4px !important;
+        border-radius: 16px !important;
+        box-shadow: 0 0 32px rgba(249, 115, 22, 0.9) !important;
+        transition: outline 0.12s ease, box-shadow 0.12s ease !important;
+      }
+      .stb-focus-pill {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: #ea580c;
+        color: #ffffff;
+        border: 3px solid #fde047;
+        border-radius: 12px;
+        padding: 4px 14px;
+        font-size: 22px;
         font-weight: 900;
         z-index: 9999;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.75);
+        box-shadow: 0 6px 18px rgba(0,0,0,0.85);
         pointer-events: none;
+        line-height: 1.15;
       }
     `;
     document.head.appendChild(style);
@@ -188,7 +215,6 @@
       }
     }
 
-    // 備援：以按鈕文字（「略過」、「Skip」）在播放器內搜尋
     const container = document.querySelector("#movie_player") || document.body;
     if (container) {
       const candidates = container.querySelectorAll("button, [role='button'], .ytp-ad-module div");
@@ -234,7 +260,380 @@
   }
 
   // =========================================================================
-  // 4. 遙控器操作 API (window.__STB_CTRL__)
+  // 4. 媒體卡片探索（支援：一般影片 + 新舊版播放清單/合輯 + Shorts 短影音）
+  // =========================================================================
+  const CARD_SELECTORS = [
+    "ytd-video-renderer",
+    "ytd-rich-item-renderer",
+    "ytd-grid-video-renderer",
+    "ytd-playlist-renderer",
+    "ytd-radio-renderer",
+    "yt-lockup-view-model",
+    "ytm-shorts-lockup-view-model-v2",
+    "ytm-shorts-lockup-view-model",
+    "ytd-reel-item-renderer"
+  ].join(",");
+
+  let currentFocusEl = null;
+
+  function getCardPlayUrl(card) {
+    if (!card) return "";
+    // 1. 優先尋找直接進入播放且帶播放清單或影片的連結
+    const watchWithList = card.querySelector("a[href*='/watch?'][href*='list=']");
+    if (watchWithList && watchWithList.href) return watchWithList.href;
+
+    // 2. 一般影片或 Shorts 連結
+    const directLink =
+      card.querySelector("a#video-title") ||
+      card.querySelector("a#video-title-link") ||
+      card.querySelector("a.yt-lockup-metadata-view-model-wiz__title") ||
+      card.querySelector("a.yt-lockup-view-model-wiz__content-image") ||
+      card.querySelector("a.reel-item-endpoint") ||
+      card.querySelector("a[href*='/watch?v=']") ||
+      card.querySelector("a[href*='/shorts/']") ||
+      card.querySelector("a[href*='/playlist?list=']");
+
+    if (directLink && directLink.href) {
+      return directLink.href;
+    }
+    return "";
+  }
+
+  function getCardTitle(card) {
+    if (!card) return "精選影片";
+    const titleEl =
+      card.querySelector("#video-title") ||
+      card.querySelector(".yt-lockup-metadata-view-model-wiz__title") ||
+      card.querySelector(".shortsLockupViewModelHostMetadataTitle") ||
+      card.querySelector("h3") ||
+      card.querySelector("a[title]");
+    if (titleEl) {
+      const txt = (titleEl.textContent || titleEl.getAttribute("title") || "").trim();
+      if (txt) return txt;
+    }
+    return "精選影片";
+  }
+
+  function getAllCandidateCards() {
+    const raw = Array.from(document.querySelectorAll(CARD_SELECTORS));
+    // 過濾掉巢狀重複元素（例如 ytd-rich-item-renderer 內部包著 yt-lockup-view-model 時只取外層或有效層）
+    const valid = raw.filter((el) => {
+      if (el.offsetParent === null) return false;
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 80 || rect.height < 60) return false;
+      return getCardPlayUrl(el) !== "";
+    });
+
+    const validSet = new Set(valid);
+    return valid.filter((el) => {
+      let p = el.parentElement;
+      while (p) {
+        if (validSet.has(p)) return false;
+        p = p.parentElement;
+      }
+      return true;
+    });
+  }
+
+  // 取得目前電視螢幕可視範圍內的卡片（由上而下、由左而右排序）
+  function getViewportVideoCards() {
+    const all = getAllCandidateCards();
+    const viewH = window.innerHeight || 720;
+    const viewW = window.innerWidth || 1280;
+
+    let visible = all.filter((el) => {
+      const rect = el.getBoundingClientRect();
+      const centerY = rect.top + rect.height * 0.35;
+      const centerX = rect.left + rect.width * 0.5;
+      return centerY >= 55 && centerY <= viewH - 25 && centerX >= 10 && centerX <= viewW - 10;
+    });
+
+    if (visible.length === 0) {
+      visible = all.filter((el) => {
+        const rect = el.getBoundingClientRect();
+        return rect.bottom > 70 && rect.top < viewH - 30 && rect.right > 20 && rect.left < viewW - 20;
+      });
+    }
+
+    visible.sort((a, b) => {
+      const ra = a.getBoundingClientRect();
+      const rb = b.getBoundingClientRect();
+      if (Math.abs(ra.top - rb.top) > 45) {
+        return ra.top - rb.top;
+      }
+      return ra.left - rb.left;
+    });
+
+    return visible;
+  }
+
+  // 設定目前十字鍵 Focus 的卡片
+  function setFocusedCard(card, shouldScrollAndAnnounce) {
+    if (!card) return;
+    currentFocusEl = card;
+
+    document.querySelectorAll(".stb-focused-card").forEach((el) => {
+      if (el !== card) {
+        el.classList.remove("stb-focused-card");
+        const oldPill = el.querySelector(".stb-focus-pill");
+        if (oldPill) oldPill.remove();
+      }
+    });
+
+    card.style.position = "relative";
+    card.classList.add("stb-focused-card");
+
+    let pill = card.querySelector(".stb-focus-pill");
+    if (!pill) {
+      pill = document.createElement("div");
+      pill.className = "stb-focus-pill";
+      pill.textContent = "👉 按 [🆗確定] 播放";
+      card.appendChild(pill);
+    }
+
+    if (shouldScrollAndAnnounce) {
+      try {
+        card.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      } catch (e) {}
+      const title = getCardTitle(card);
+      window.__STB_OSD__.show(`🎯 選中：${title.slice(0, 20)}`, 1800);
+      setTimeout(updateViewportNumberBadges, 220);
+      setTimeout(updateViewportNumberBadges, 500);
+    }
+  }
+
+  // 動態更新目前電視畫面上的 [1]~[6] 號牌（並確保至少有一個預設 Focus 項目）
+  function updateViewportNumberBadges() {
+    if (!location.hostname.includes("youtube.com")) return;
+    if (location.pathname.startsWith("/watch") || location.pathname.startsWith("/shorts")) return;
+
+    const visibleCards = getViewportVideoCards();
+    // 為了避免單一橫排 Shorts 把 1~6 號全部吃光：同一橫排 Shorts 最多分配 2 個快捷號碼，其餘留給上下正常影片（但十字方向鍵左右移仍可選取整排每一個 Short！）
+    const badgeTargets = [];
+    const shelfCounts = new Map();
+
+    for (const card of visibleCards) {
+      if (badgeTargets.length >= 6) break;
+      const isShort =
+        card.tagName.toLowerCase().includes("shorts") ||
+        card.tagName.toLowerCase().includes("reel");
+      if (isShort) {
+        const shelf =
+          card.closest("ytd-reel-shelf-renderer, grid-shelf-view-model, ytd-rich-shelf-renderer") ||
+          card.parentElement;
+        const count = shelfCounts.get(shelf) || 0;
+        if (count >= 2) continue;
+        shelfCounts.set(shelf, count + 1);
+      }
+      badgeTargets.push(card);
+    }
+
+    // 若不足 6 個則以剩餘可視卡片補滿
+    if (badgeTargets.length < 6) {
+      for (const card of visibleCards) {
+        if (badgeTargets.length >= 6) break;
+        if (!badgeTargets.includes(card)) {
+          badgeTargets.push(card);
+        }
+      }
+    }
+
+    const inViewSet = new Set(badgeTargets);
+
+    document.querySelectorAll("[data-stb-pick-index], .stb-num-badge").forEach((el) => {
+      if (el.classList && el.classList.contains("stb-num-badge")) {
+        const parent = el.parentElement;
+        if (!parent || !inViewSet.has(parent)) {
+          el.remove();
+        }
+      } else if (!inViewSet.has(el)) {
+        el.removeAttribute("data-stb-pick-index");
+      }
+    });
+
+    badgeTargets.forEach((card, idx) => {
+      const num = idx + 1;
+      card.style.position = "relative";
+      card.setAttribute("data-stb-pick-index", String(num));
+
+      let badge = card.querySelector(".stb-num-badge");
+      if (!badge) {
+        badge = document.createElement("div");
+        badge.className = "stb-num-badge";
+        card.appendChild(badge);
+      }
+      const expectedText = `按 [${num}] 播`;
+      if (badge.textContent !== expectedText) {
+        badge.textContent = expectedText;
+      }
+    });
+
+    // 若目前尚未有 Focus 項目（或原 Focus 已被移除），預設自動 Focus 在畫面第 1 部影片
+    if (!currentFocusEl || !document.body.contains(currentFocusEl) || currentFocusEl.offsetParent === null) {
+      if (badgeTargets.length > 0) {
+        setFocusedCard(badgeTargets[0], false);
+      } else if (visibleCards.length > 0) {
+        setFocusedCard(visibleCards[0], false);
+      }
+    }
+  }
+
+  // 十字方向鍵空間導航演算法 ('up' | 'down' | 'left' | 'right')
+  function navigateFocusByDirection(dir) {
+    // 若正在觀看 Shorts 短影音全螢幕頁 (/shorts/xxx)，按上下鍵直接切換下一部/上一部 Short
+    if (location.pathname.startsWith("/shorts")) {
+      if (dir === "down" || dir === "right") {
+        const nextBtn = document.querySelector("#navigation-button-down button, button[aria-label*='下一部'], button[aria-label*='Next']");
+        if (nextBtn) dispatchFullClick(nextBtn);
+        else window.scrollBy({ top: window.innerHeight, behavior: "smooth" });
+        window.__STB_OSD__.show("⬇️ 下一部短影音");
+      } else if (dir === "up" || dir === "left") {
+        const prevBtn = document.querySelector("#navigation-button-up button, button[aria-label*='上一部'], button[aria-label*='Previous']");
+        if (prevBtn) dispatchFullClick(prevBtn);
+        else window.scrollBy({ top: -window.innerHeight, behavior: "smooth" });
+        window.__STB_OSD__.show("⬆️ 上一部短影音");
+      }
+      return;
+    }
+
+    const allCards = getAllCandidateCards();
+    if (allCards.length === 0) {
+      window.__STB_OSD__.show("⚠️ 目前畫面沒有可選取的影片");
+      return;
+    }
+
+    if (!currentFocusEl || !document.body.contains(currentFocusEl)) {
+      const visible = getViewportVideoCards();
+      setFocusedCard(visible[0] || allCards[0], true);
+      return;
+    }
+
+    const curRect = currentFocusEl.getBoundingClientRect();
+    const curCenterX = curRect.left + curRect.width / 2;
+    const curCenterY = curRect.top + curRect.height / 2;
+
+    if (dir === "left" || dir === "right") {
+      // 找出同一橫排（或同一個 Shorts 橫向專櫃）的卡片
+      const sameRow = allCards.filter((c) => {
+        if (c === currentFocusEl) return false;
+        const r = c.getBoundingClientRect();
+        const cy = r.top + r.height / 2;
+        return Math.abs(cy - curCenterY) < Math.max(curRect.height, r.height) * 0.65;
+      });
+
+      const candidates = sameRow.filter((c) => {
+        const r = c.getBoundingClientRect();
+        const cx = r.left + r.width / 2;
+        return dir === "right" ? cx > curCenterX + 10 : cx < curCenterX - 10;
+      });
+
+      candidates.sort((a, b) => {
+        const ax = a.getBoundingClientRect().left;
+        const bx = b.getBoundingClientRect().left;
+        return dir === "right" ? ax - bx : bx - ax;
+      });
+
+      if (candidates.length > 0) {
+        const chosen = candidates[0];
+        setFocusedCard(chosen, true);
+
+        // 若選到 Shorts 橫向專櫃接近邊緣，自動觸發專櫃往右/往左滑動按鈕載入更多 Shorts
+        const shelf = chosen.closest("ytd-reel-shelf-renderer, grid-shelf-view-model, ytd-rich-shelf-renderer");
+        if (shelf) {
+          const chosenRect = chosen.getBoundingClientRect();
+          if (dir === "right" && chosenRect.right > window.innerWidth - 220) {
+            const rightArrow = shelf.querySelector("#right-arrow button, button[aria-label*='Next'], button[aria-label*='下一個'], button[aria-label*='往右']");
+            if (rightArrow) dispatchFullClick(rightArrow);
+          } else if (dir === "left" && chosenRect.left < 220) {
+            const leftArrow = shelf.querySelector("#left-arrow button, button[aria-label*='Previous'], button[aria-label*='上一個'], button[aria-label*='往左']");
+            if (leftArrow) dispatchFullClick(leftArrow);
+          }
+        }
+        return;
+      } else {
+        // 如果同一排已經在最邊緣，嘗試點擊該專櫃的橫向展開箭頭
+        const shelf = currentFocusEl.closest("ytd-reel-shelf-renderer, grid-shelf-view-model, ytd-rich-shelf-renderer");
+        if (shelf) {
+          const arrowSel =
+            dir === "right"
+              ? "#right-arrow button, button[aria-label*='Next'], button[aria-label*='下一個']"
+              : "#left-arrow button, button[aria-label*='Previous'], button[aria-label*='上一個']";
+          const arrowBtn = shelf.querySelector(arrowSel);
+          if (arrowBtn) {
+            dispatchFullClick(arrowBtn);
+            window.__STB_OSD__.show(dir === "right" ? "➡️ 滑出更多短影音..." : "⬅️ 往左滑回...");
+            return;
+          }
+        }
+        // 若不是橫排專櫃，往右視同下一個、往左視同上一個
+        dir = dir === "right" ? "down" : "up";
+      }
+    }
+
+    if (dir === "down" || dir === "up") {
+      const verticalCandidates = allCards.filter((c) => {
+        if (c === currentFocusEl) return false;
+        const r = c.getBoundingClientRect();
+        const cy = r.top + r.height / 2;
+        if (dir === "down") {
+          return cy > curCenterY + curRect.height * 0.45;
+        } else {
+          return cy < curCenterY - curRect.height * 0.45;
+        }
+      });
+
+      if (verticalCandidates.length > 0) {
+        // 先找出最接近的下一列 (row) 的垂直距離
+        verticalCandidates.sort((a, b) => {
+          const ay = a.getBoundingClientRect().top;
+          const by = b.getBoundingClientRect().top;
+          return dir === "down" ? ay - by : by - ay;
+        });
+
+        const nearestRowTop = verticalCandidates[0].getBoundingClientRect().top;
+        const nearestRowCards = verticalCandidates.filter((c) => {
+          return Math.abs(c.getBoundingClientRect().top - nearestRowTop) < 85;
+        });
+
+        // 在下一列中挑選水平位置最接近目前項目的卡片（若從一般影片進入 Shorts 橫排則優先選左側第一部）
+        nearestRowCards.sort((a, b) => {
+          const ax = a.getBoundingClientRect().left;
+          const bx = b.getBoundingClientRect().left;
+          return Math.abs(ax - curRect.left) - Math.abs(bx - curRect.left);
+        });
+
+        setFocusedCard(nearestRowCards[0], true);
+      } else {
+        // 已達目前載入列表底部/頂部，自動捲動頁面載入更多
+        const delta = dir === "down" ? 550 : -550;
+        window.scrollBy({ top: delta, behavior: "smooth" });
+        window.__STB_OSD__.show(dir === "down" ? "⬇️ 往下載入更多影片..." : "⬆️ 已到頁面頂端");
+        setTimeout(updateViewportNumberBadges, 350);
+      }
+    }
+  }
+
+  function playCardElement(card, labelPrefix) {
+    if (!card) {
+      window.__STB_OSD__.show("⚠️ 找不到可播放的影片");
+      return;
+    }
+    const url = getCardPlayUrl(card);
+    const title = getCardTitle(card);
+    if (url) {
+      window.__STB_OSD__.show(`📺 ${labelPrefix || "正在播放"}：${title.slice(0, 18)}`);
+      window.location.href = url;
+    } else {
+      const link = card.querySelector("a[href]");
+      if (link) {
+        window.__STB_OSD__.show(`📺 ${labelPrefix || "正在開啟"}：${title.slice(0, 18)}`);
+        dispatchFullClick(link);
+      }
+    }
+  }
+
+  // =========================================================================
+  // 5. 遙控器操作 API (window.__STB_CTRL__)
   // =========================================================================
   let lastTogglePlayTime = 0;
   const SPEED_STEPS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
@@ -243,7 +642,6 @@
   window.__STB_CTRL__ = {
     togglePlay: function () {
       const now = Date.now();
-      // 防連點保護：400ms 內忽略重複觸發，避免手機誤觸連點兩次
       if (now - lastTogglePlayTime < 400) return;
       lastTogglePlayTime = now;
 
@@ -263,7 +661,26 @@
       }
     },
 
-    // 調整播放速度 ("slower" | "normal" | "faster")
+    // 十字方向鍵移動焦點 ('up' | 'down' | 'left' | 'right')
+    moveFocus: function (dir) {
+      document.documentElement.classList.remove("stb-tv-fullscreen");
+      navigateFocusByDirection(dir);
+    },
+
+    // 按下 [🆗 確定播放] 播放目前外框 Focus 的項目
+    activateFocused: function () {
+      if (currentFocusEl && document.body.contains(currentFocusEl)) {
+        playCardElement(currentFocusEl, "正在播放");
+        return;
+      }
+      updateViewportNumberBadges();
+      if (currentFocusEl) {
+        playCardElement(currentFocusEl, "正在播放");
+      } else {
+        window.__STB_OSD__.show("⚠️ 請先搜尋或選擇一部影片");
+      }
+    },
+
     changeSpeed: function (mode) {
       const video = document.querySelector("video");
       if (!video) {
@@ -273,14 +690,14 @@
 
       let current = window.__STB_USER_RATE__ || video.playbackRate || 1.0;
       let idx = SPEED_STEPS.findIndex((s) => Math.abs(s - current) < 0.08);
-      if (idx === -1) idx = 2; // 預設 1.0x
+      if (idx === -1) idx = 2;
 
       if (mode === "slower") {
         idx = Math.max(0, idx - 1);
       } else if (mode === "faster") {
         idx = Math.min(SPEED_STEPS.length - 1, idx + 1);
       } else {
-        idx = 2; // normal = 1.0x
+        idx = 2;
       }
 
       const nextRate = SPEED_STEPS[idx];
@@ -303,7 +720,6 @@
       }
     },
 
-    // 開關 YouTube CC 字幕
     toggleSubtitles: function () {
       const subBtn = document.querySelector(".ytp-subtitles-button");
       if (subBtn) {
@@ -331,7 +747,6 @@
         return;
       }
 
-      // 備援：標準 HTML5 video textTracks
       const video = document.querySelector("video");
       if (video && video.textTracks && video.textTracks.length > 0) {
         const track = video.textTracks[0];
@@ -347,7 +762,6 @@
       }
     },
 
-    // 手動強制點擊右下角「略過廣告」（結合 DOM 點擊 + 廣告快轉 + 回傳座標供 Rust 執行真實 OS 滑鼠點擊）
     prepareSkipAdClick: function () {
       const player = document.querySelector("#movie_player");
       const video = document.querySelector("video");
@@ -362,7 +776,6 @@
         clickY = rect.top + rect.height / 2;
         dispatchFullClick(skipBtn);
       } else if (player) {
-        // 若 YouTube 隱藏了選擇器，直接鎖定播放器右下角「略過廣告」標準熱區座標
         const pRect = player.getBoundingClientRect();
         clickX = pRect.right - 88;
         clickY = pRect.bottom - 112;
@@ -370,7 +783,6 @@
         if (hitEl) dispatchFullClick(hitEl);
       }
 
-      // 若目前正在播放廣告影片，同步強制快轉到底
       const isAdShowing =
         (player && player.classList.contains("ad-showing")) ||
         document.querySelector(".ytp-ad-player-overlay, .ytp-ad-player-overlay-layout") !== null;
@@ -387,7 +799,6 @@
       showClickRipple(clickX, clickY);
       window.__STB_OSD__.show("⏭ 已點擊右下角「略過廣告」！");
 
-      // 將目標點擊位置的視窗比例寫入 document.title 供 Rust 後端讀取並觸發 OS 真實滑鼠左鍵點擊
       const ratioX = Math.max(0.05, Math.min(0.99, clickX / Math.max(1, window.innerWidth)));
       const ratioY = Math.max(0.05, Math.min(0.99, clickY / Math.max(1, window.innerHeight)));
       const cleanTitle = document.title.replace(/\s*\[STB_SKIP:[^\]]+\]/g, "");
@@ -437,8 +848,11 @@
       } else {
         window.__STB_OSD__.show("⬆️ 回上一批影片（畫面已重新編號 1～6）");
       }
-      setTimeout(updateViewportNumberBadges, 220);
-      setTimeout(updateViewportNumberBadges, 520);
+      setTimeout(() => {
+        updateViewportNumberBadges();
+        const visible = getViewportVideoCards();
+        if (visible.length > 0) setFocusedCard(visible[0], false);
+      }, 320);
     },
 
     selectVideoByIndex: function (oneBasedIndex) {
@@ -449,116 +863,20 @@
         target = cards[oneBasedIndex - 1];
       }
       if (!target) {
-        window.__STB_OSD__.show(`⚠️ 目前畫面找不到第 ${oneBasedIndex} 部影片`);
+        window.__STB_OSD__.show(`⚠️ 目前畫面找不到 [${oneBasedIndex}] 號影片`);
         return;
       }
-      const link =
-        target.querySelector("a#video-title") ||
-        target.querySelector("a#video-title-link") ||
-        target.querySelector("a#thumbnail") ||
-        target.querySelector("a[href*='/watch'], a[href*='/shorts']");
-      if (link && link.href) {
-        const title = (link.textContent || "").trim() || `第 ${oneBasedIndex} 部影片`;
-        window.__STB_OSD__.show(`📺 正在播放 [${oneBasedIndex}]：${title.slice(0, 18)}`);
-        window.location.href = link.href;
-      }
+      setFocusedCard(target, false);
+      playCardElement(target, `正在播放 [${oneBasedIndex}]`);
     }
   };
 
-  function getAllCandidateCards() {
-    const selectors = [
-      "ytd-video-renderer",
-      "ytd-rich-item-renderer",
-      "ytd-grid-video-renderer",
-      "ytd-playlist-renderer"
-    ];
-    const all = Array.from(document.querySelectorAll(selectors.join(",")));
-    return all.filter((el) => {
-      const link = el.querySelector("a[href*='/watch'], a[href*='/shorts']");
-      return link && el.offsetParent !== null;
-    });
-  }
-
-  // 取得目前電視螢幕可視範圍內的影片卡片，並依「由上而下、由左而右」視覺順序排列
-  function getViewportVideoCards() {
-    const all = getAllCandidateCards();
-    const viewH = window.innerHeight || 720;
-    const viewW = window.innerWidth || 1280;
-
-    let visible = all.filter((el) => {
-      const rect = el.getBoundingClientRect();
-      if (rect.width < 100 || rect.height < 60) return false;
-      const centerY = rect.top + rect.height * 0.35;
-      return centerY >= 55 && centerY <= viewH - 30 && rect.right > 0 && rect.left < viewW;
-    });
-
-    if (visible.length === 0) {
-      visible = all.filter((el) => {
-        const rect = el.getBoundingClientRect();
-        return rect.bottom > 70 && rect.top < viewH - 30;
-      });
-    }
-
-    visible.sort((a, b) => {
-      const ra = a.getBoundingClientRect();
-      const rb = b.getBoundingClientRect();
-      if (Math.abs(ra.top - rb.top) > 45) {
-        return ra.top - rb.top;
-      }
-      return ra.left - rb.left;
-    });
-
-    return visible;
-  }
-
-  // 動態將目前畫面可視的前 6 部影片掛上 [1]~[6] 號牌，並移除已滑出畫面外的舊號牌
-  function updateViewportNumberBadges() {
-    if (!location.hostname.includes("youtube.com")) return;
-    if (location.pathname.startsWith("/watch")) return;
-
-    const inViewCards = getViewportVideoCards().slice(0, 6);
-    const inViewSet = new Set(inViewCards);
-
-    // 清除不在前 6 名可視範圍內的舊標籤
-    document.querySelectorAll("[data-stb-pick-index], .stb-num-badge").forEach((el) => {
-      if (el.classList && el.classList.contains("stb-num-badge")) {
-        const parent = el.parentElement;
-        if (!parent || !inViewSet.has(parent)) {
-          el.remove();
-        }
-      } else if (!inViewSet.has(el)) {
-        el.removeAttribute("data-stb-pick-index");
-        el.style.outline = "";
-        el.style.borderRadius = "";
-      }
-    });
-
-    // 為目前電視畫面上的前 6 部影片掛上最新 [1]~[6] 號牌
-    inViewCards.forEach((card, idx) => {
-      const num = idx + 1;
-      card.style.position = "relative";
-      card.setAttribute("data-stb-pick-index", String(num));
-      card.style.outline = "3px solid rgba(250, 204, 21, 0.65)";
-      card.style.borderRadius = "14px";
-
-      let badge = card.querySelector(".stb-num-badge");
-      if (!badge) {
-        badge = document.createElement("div");
-        badge.className = "stb-num-badge";
-        card.appendChild(badge);
-      }
-      const expectedText = `按手機 [${num}] 播放`;
-      if (badge.textContent !== expectedText) {
-        badge.textContent = expectedText;
-      }
-    });
-  }
-
   // =========================================================================
-  // 5. YouTube 自動化守護迴圈 (自動偵測廣告、自動點播、編號標記、防暫停)
+  // 6. YouTube 自動化守護迴圈
   // =========================================================================
   let autoPlayTriggeredForUrl = "";
   let initializedWatchUrl = "";
+  let autoPlayedPlaylistUrl = "";
 
   function runYouTubeGuardian() {
     if (!location.hostname.includes("youtube.com")) return;
@@ -584,7 +902,6 @@
           video.currentTime = Math.max(0, video.duration - 0.2);
         }
       } else {
-        // 正常影片確保有聲音、維持使用者設定的播放倍速且音量 100%
         const desiredRate = window.__STB_USER_RATE__ || 1.0;
         if (Math.abs(video.playbackRate - desiredRate) > 0.05) {
           video.playbackRate = desiredRate;
@@ -605,7 +922,18 @@
       }
     });
 
-    // (C) 若剛進入新的播放頁 (/watch)，僅在初次載入時套用滿版電視模式並啟動播放一次
+    // (C) 若進入播放清單介紹頁 (/playlist?list=...)，自動點擊第一首進入連續播放
+    if (location.pathname.startsWith("/playlist") && autoPlayedPlaylistUrl !== location.href) {
+      const firstPlayLink = document.querySelector("a[href*='/watch?'][href*='list=']");
+      if (firstPlayLink && firstPlayLink.href) {
+        autoPlayedPlaylistUrl = location.href;
+        window.__STB_OSD__.show("🎵 正在為您啟動播放清單全部播放...");
+        window.location.href = firstPlayLink.href;
+        return;
+      }
+    }
+
+    // (D) 若剛進入新的播放頁 (/watch)，僅在初次載入時套用滿版電視模式並啟動播放一次
     if (location.pathname.startsWith("/watch")) {
       if (initializedWatchUrl !== location.href) {
         initializedWatchUrl = location.href;
@@ -623,12 +951,12 @@
       document.documentElement.classList.remove("stb-tv-fullscreen");
     }
 
-    // (D) 非播放頁時，自動將「目前電視螢幕可視範圍內」的前 6 部影片動態掛上 [1]~[6] 號牌
-    if (!location.pathname.startsWith("/watch")) {
+    // (E) 非播放頁時，自動更新畫面上的 [1]~[6] 號牌與預設 Focus 外框
+    if (!location.pathname.startsWith("/watch") && !location.pathname.startsWith("/shorts")) {
       updateViewportNumberBadges();
     }
 
-    // (E) 搜尋結果頁：若帶有 stb_autoplay=1，智慧自動點播第一部影片或 LIVE 直播
+    // (F) 搜尋結果頁：若帶有 stb_autoplay=1，智慧自動點播第一部影片或 LIVE 直播
     if (location.pathname.startsWith("/results")) {
       const params = new URLSearchParams(location.search);
       const wantAutoplay = params.get("stb_autoplay") === "1";
@@ -651,18 +979,13 @@
           if (liveCard) chosenCard = liveCard;
         }
 
-        const link =
-          chosenCard.querySelector("a#video-title") ||
-          chosenCard.querySelector("a#video-title-link") ||
-          chosenCard.querySelector("a#thumbnail") ||
-          chosenCard.querySelector("a[href*='/watch']");
-
-        if (link && link.href) {
+        const url = getCardPlayUrl(chosenCard);
+        if (url) {
           autoPlayTriggeredForUrl = location.href;
-          const title = (link.textContent || "").trim() || "精選節目";
+          const title = getCardTitle(chosenCard);
           window.__STB_OSD__.show(`📺 自動為您播放：${title.slice(0, 18)}`);
           setTimeout(() => {
-            window.location.href = link.href;
+            window.location.href = url;
           }, 350);
         }
       }
@@ -671,7 +994,6 @@
 
   setInterval(runYouTubeGuardian, 800);
 
-  // 當畫面捲動（不論是用手機翻頁或電腦滑鼠滾輪）時，即時更新畫面上的 [1]~[6] 號牌
   let scrollBadgeTimer = null;
   window.addEventListener(
     "scroll",
@@ -682,7 +1004,6 @@
     { passive: true }
   );
 
-  // 跨平台 Esc 鍵退出信號（支援 Linux / 樹莓派 / macOS 在 YouTube 頁面按 Esc 直接最小化回桌面）
   window.addEventListener(
     "keydown",
     function (e) {
